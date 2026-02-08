@@ -5,7 +5,7 @@
    - CRUD buttons are disabled for now (next steps)
    ========================================================= */
 
-const API_BASE = "http://127.0.0.1:5000/api";
+const API_BASE = "https://solo-project-2-5s58.onrender.com/api";
 
 let totalCount = 0;
 let totalPages = 1;
