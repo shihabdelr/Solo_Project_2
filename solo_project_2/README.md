@@ -2,6 +2,8 @@ Solo Project 2
 
 This project is a cloud hosted collection manager built using a client/server architecture. The frontend is implemented with HTML, CSS, and JavaScript and is deployed on Netlify, while the backend is a Flask application hosted on Render. All data is persisted on the server using JSON files, so that it maintains its state across refreshes, incognito sessions, and different devices. The application supports full CRUD functionality through backend API routes, enforces server-side validation, and implements fixed paging with 10 records per page. A stats view includes total record counts and domain-specific metrics. This project shows proper separation of concerns, HTTP-based client/server communication, and server-side data persistence.
 
+Loom Video Link: https://www.loom.com/share/587ebdb0682342779b973548c6c87d5e
+
 Frontend URL: https://soloproj.netlify.app/
 
 Backend Base URL: https://solo-project-2-5s58.onrender.com/api
