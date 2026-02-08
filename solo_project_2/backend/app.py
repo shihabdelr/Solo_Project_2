@@ -21,6 +21,11 @@ def save_data(data):
     os.replace(tmp_path, DATA_FILE)
 
 
+@app.get("/")
+def home():
+    return "Backend is running", 200
+
+
 @app.get("/api/teams")
 def get_teams():
     # Required: fixed page size of 10 (ignore client pageSize to keep rubric-safe)
