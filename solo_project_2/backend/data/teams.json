@@ -1,0 +1,253 @@
+{
+  "nextId": 34,
+  "teams": [
+    {
+      "id": "1",
+      "name": "Liverpool",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1892,
+      "stadium": "Anfield"
+    },
+    {
+      "id": "2",
+      "name": "Manchester City",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1880,
+      "stadium": "Etihad Stadium"
+    },
+    {
+      "id": "3",
+      "name": "Arsenal",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1886,
+      "stadium": "Emirates Stadium"
+    },
+    {
+      "id": "4",
+      "name": "Chelsea",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1905,
+      "stadium": "Stamford Bridge"
+    },
+    {
+      "id": "5",
+      "name": "Manchester United",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1878,
+      "stadium": "Old Trafford"
+    },
+    {
+      "id": "6",
+      "name": "Tottenham Hotspur",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1882,
+      "stadium": "Tottenham Hotspur Stadium"
+    },
+    {
+      "id": "7",
+      "name": "Newcastle United",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1892,
+      "stadium": "St James' Park"
+    },
+    {
+      "id": "8",
+      "name": "Aston Villa",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1874,
+      "stadium": "Villa Park"
+    },
+    {
+      "id": "9",
+      "name": "Brighton & Hove Albion",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1901,
+      "stadium": "Amex Stadium"
+    },
+    {
+      "id": "10",
+      "name": "West Ham United",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1895,
+      "stadium": "London Stadium"
+    },
+    {
+      "id": "11",
+      "name": "Real Madrid",
+      "league": "La Liga",
+      "country": "Spain",
+      "founded": 1902,
+      "stadium": "Santiago Bernab\u00e9u"
+    },
+    {
+      "id": "12",
+      "name": "Barcelona",
+      "league": "La Liga",
+      "country": "Spain",
+      "founded": 1899,
+      "stadium": "Spotify Camp Nou"
+    },
+    {
+      "id": "13",
+      "name": "Atl\u00e9tico Madrid",
+      "league": "La Liga",
+      "country": "Spain",
+      "founded": 1903,
+      "stadium": "C\u00edvitas Metropolitano"
+    },
+    {
+      "id": "14",
+      "name": "Sevilla",
+      "league": "La Liga",
+      "country": "Spain",
+      "founded": 1890,
+      "stadium": "Ram\u00f3n S\u00e1nchez Pizju\u00e1n"
+    },
+    {
+      "id": "15",
+      "name": "Real Sociedad",
+      "league": "La Liga",
+      "country": "Spain",
+      "founded": 1909,
+      "stadium": "Reale Arena"
+    },
+    {
+      "id": "16",
+      "name": "Bayern Munich",
+      "league": "Bundesliga",
+      "country": "Germany",
+      "founded": 1900,
+      "stadium": "Allianz Arena"
+    },
+    {
+      "id": "17",
+      "name": "Borussia Dortmund",
+      "league": "Bundesliga",
+      "country": "Germany",
+      "founded": 1909,
+      "stadium": "Signal Iduna Park"
+    },
+    {
+      "id": "18",
+      "name": "RB Leipzig",
+      "league": "Bundesliga",
+      "country": "Germany",
+      "founded": 2009,
+      "stadium": "Red Bull Arena"
+    },
+    {
+      "id": "19",
+      "name": "Bayer Leverkusen",
+      "league": "Bundesliga",
+      "country": "Germany",
+      "founded": 1904,
+      "stadium": "BayArena"
+    },
+    {
+      "id": "20",
+      "name": "Eintracht Frankfurt",
+      "league": "Bundesliga",
+      "country": "Germany",
+      "founded": 1899,
+      "stadium": "Deutsche Bank Park"
+    },
+    {
+      "id": "21",
+      "name": "Paris Saint-Germain",
+      "league": "Ligue 1",
+      "country": "France",
+      "founded": 1970,
+      "stadium": "Parc des Princes"
+    },
+    {
+      "id": "22",
+      "name": "Marseille",
+      "league": "Ligue 1",
+      "country": "France",
+      "founded": 1899,
+      "stadium": "Orange V\u00e9lodrome"
+    },
+    {
+      "id": "23",
+      "name": "Lyon",
+      "league": "Ligue 1",
+      "country": "France",
+      "founded": 1950,
+      "stadium": "Groupama Stadium"
+    },
+    {
+      "id": "24",
+      "name": "Monaco",
+      "league": "Ligue 1",
+      "country": "France",
+      "founded": 1924,
+      "stadium": "Stade Louis II"
+    },
+    {
+      "id": "25",
+      "name": "Lille",
+      "league": "Ligue 1",
+      "country": "France",
+      "founded": 1944,
+      "stadium": "Decathlon Arena \u2013 Stade Pierre-Mauroy"
+    },
+    {
+      "id": "26",
+      "name": "Juventus",
+      "league": "Serie A",
+      "country": "Italy",
+      "founded": 1897,
+      "stadium": "Allianz Stadium"
+    },
+    {
+      "id": "27",
+      "name": "Inter Milan",
+      "league": "Serie A",
+      "country": "Italy",
+      "founded": 1908,
+      "stadium": "San Siro"
+    },
+    {
+      "id": "28",
+      "name": "AC Milan",
+      "league": "Serie A",
+      "country": "Italy",
+      "founded": 1899,
+      "stadium": "San Siro"
+    },
+    {
+      "id": "29",
+      "name": "Napoli",
+      "league": "Serie A",
+      "country": "Italy",
+      "founded": 1926,
+      "stadium": "Stadio Diego Armando Maradona"
+    },
+    {
+      "id": "30",
+      "name": "Roma",
+      "league": "Serie A",
+      "country": "Italy",
+      "founded": 1927,
+      "stadium": "Stadio Olimpico"
+    },
+    {
+      "id": "33",
+      "name": "West Ham",
+      "league": "Premier League",
+      "country": "England",
+      "founded": 1895,
+      "stadium": "London Stadium"
+    }
+  ]
+}

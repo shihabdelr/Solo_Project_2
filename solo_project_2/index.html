@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solo Project 1 </title>
+  <link rel="stylesheet" href="style.css?v=1" />
+</head>
+<body>
+
+  <header>
+    <h1>Soccer Teams Collection Manager</h1>
+
+    <div>
+      <button id="showList">List</button>
+      <button id="showForm">Add</button>
+      <button id="showStats">Stats</button>
+    </div>
+  </header>
+
+  <section id="listView"></section>
+
+  <section id="formView" style="display:none;">
+    <h2 id="submitBtn">Add Team</h2>
+
+    <form id="teamForm">
+      <div id="formErrors" class="form-errors" style="display:none;"></div>
+      <p>
+        <label>Team Name:</label><br />
+        <input id="name" type="text" placeholder="Arsenal" required/>
+      </p>
+
+      <p>
+        <label>League:</label><br />
+        <input id="league" type="text" placeholder="Premier League" required />
+      </p>
+
+      <p>
+        <label>Country:</label><br />
+        <input id="country" type="text" placeholder="England" required/>
+      </p>
+
+      <p>
+        <label>Founded Year:</label><br />
+        <input id="founded" type="number" placeholder="1886" min="1701" required/>
+      </p>
+
+      <p>
+        <label>Stadium:</label><br />
+        <input id="stadium" type="text" placeholder="Emirates Stadium" required/>
+      </p>
+
+      <button type="submit">Save</button>
+    </form>
+
+    <button id="cancel" type="button">Cancel</button>
+  </section>
+
+  <section id="statsView" style="display:none;"></section>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
