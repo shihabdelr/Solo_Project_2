@@ -1,9 +1,4 @@
-/* =========================================================
-   Solo Project 2 (Step 3): READ from Flask backend
-   - Loads teams from GET /api/teams?page=1
-   - No localStorage persistence
-   - CRUD buttons are disabled for now (next steps)
-   ========================================================= */
+/*https://soloproj.netlify.app/*/
 
 const API_BASE = "https://solo-project-2-5s58.onrender.com/api";
 
@@ -14,13 +9,12 @@ let statsTotalCount = 0;
 let statsTeamsPerLeague = {};
 
 
-let teams = [];        // current page of teams (10 items)
-let currentPage = 1;   // current page number from server
+let teams = [];
+let currentPage = 1;
 
-let editingId = null;  // kept for later steps (PUT)
-let nextTeamId = null; // server will own IDs in SP2 (so not used client-side)
+let editingId = null;
+let nextTeamId = null; 
 
-/* ---------- API (READ) ---------- */
 async function loadTeams(page = 1) {
   const res = await fetch(`${API_BASE}/teams?page=${page}`);
   if (!res.ok) throw new Error(`Failed to load teams (HTTP ${res.status})`);
@@ -47,9 +41,6 @@ async function loadStats() {
   renderStats();
 }
 
-
-
-/* ---------- VIEW SWITCHING ---------- */
 function show(view) {
   const listView = document.getElementById("listView");
   const formView = document.getElementById("formView");
@@ -68,7 +59,6 @@ function show(view) {
   }
 }
 
-/* ---------- LIST RENDER ---------- */
 function renderList() {
   const list = document.getElementById("listView");
 
@@ -119,7 +109,6 @@ function renderList() {
   html += `</table>`;
   list.innerHTML = html;
 
-  // Wire up paging buttons after HTML is inserted
   document.getElementById("prevPage")?.addEventListener("click", () => {
     if (currentPage > 1) loadTeams(currentPage - 1);
   });
@@ -129,9 +118,6 @@ function renderList() {
   });
 }
 
-
-
-/* ---------- STATS (TEMP: page-only) ---------- */
 function renderStats() {
   const stats = document.getElementById("statsView");
 
@@ -149,8 +135,6 @@ function renderStats() {
   `;
 }
 
-
-/* ---------- FORM HELPERS (kept for later steps) ---------- */
 function fillForm(team) {
   const nameInput = document.getElementById("name");
   const leagueInput = document.getElementById("league");
@@ -184,8 +168,6 @@ function startAdd() {
   show("form");
 }
 
-
-/* ---------- CRUD STUBS (disabled in UI) ---------- */
 window.editTeam = function (id) {
   const team = teams.find(t => String(t.id) === String(id));
   if (!team) {
@@ -221,9 +203,6 @@ window.deleteTeam = async function (id) {
       throw new Error(`DELETE failed (HTTP ${res.status})`);
     }
 
-    // If we deleted the last item on the last page, step back a page
-    // Example: totalCount 21, pageSize 10 => pages 1..3
-    // If you're on page 3 and delete down to 20, page 3 no longer exists.
     const newTotal = totalCount - 1;
     const newTotalPages = Math.max(1, Math.ceil(newTotal / 10));
     const targetPage = Math.min(currentPage, newTotalPages);
@@ -235,8 +214,6 @@ window.deleteTeam = async function (id) {
   }
 };
 
-
-/* ---------- EVENTS ---------- */
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("showList").addEventListener("click", () => show("list"));
   document.getElementById("showForm").addEventListener("click", startAdd);
@@ -290,7 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(`${method} failed (HTTP ${res.status})`);
       }
 
-      // ✅ Step 11A + 11B live here
       show("list");
 
       if (method === "POST") {
@@ -309,10 +285,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-
-
-
-  // Initial load from backend
   show("list");
   loadTeams(1).catch((err) => {
     console.error(err);

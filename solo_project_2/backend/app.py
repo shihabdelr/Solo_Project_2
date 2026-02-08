@@ -4,7 +4,7 @@ import json
 import os
 
 app = Flask(__name__)
-CORS(app)  # allow your Netlify frontend to call this API
+CORS(app)
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "teams.json")
 
@@ -14,7 +14,6 @@ def load_data():
         return json.load(f)
 
 def save_data(data):
-    # Atomic write: write temp file, then replace
     tmp_path = DATA_FILE + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -28,10 +27,8 @@ def home():
 
 @app.get("/api/teams")
 def get_teams():
-    # Required: fixed page size of 10 (ignore client pageSize to keep rubric-safe)
     page_size = 10
 
-    # page query param (default 1)
     try:
         page = int(request.args.get("page", "1"))
     except ValueError:
@@ -108,7 +105,6 @@ def update_team(team_id):
     data = load_data()
     teams = data.get("teams", [])
 
-    # Find the existing team
     idx = None
     for i, t in enumerate(teams):
         if str(t.get("id")) == str(team_id):
@@ -118,7 +114,6 @@ def update_team(team_id):
     if idx is None:
         return jsonify({"error": "Team not found."}), 404
 
-    # Unique name (case-insensitive), excluding self
     lower = name.lower()
     for t in teams:
         if str(t.get("id")) != str(team_id) and str(t.get("name", "")).strip().lower() == lower:
@@ -128,7 +123,6 @@ def update_team(team_id):
     if errors:
         return jsonify({"errors": errors}), 400
 
-    # Update fields
     teams[idx]["name"] = name
     teams[idx]["league"] = league
     teams[idx]["country"] = country
@@ -166,7 +160,6 @@ def delete_team(team_id):
 def create_team():
     payload = request.get_json(silent=True) or {}
 
-    # --- server-side validation ---
     errors = {}
 
     def get_str(field):
@@ -200,7 +193,6 @@ def create_team():
     data = load_data()
     teams = data.get("teams", [])
 
-    # unique name (case-insensitive)
     if name:
         lower = name.lower()
         for t in teams:
@@ -211,7 +203,6 @@ def create_team():
     if errors:
         return jsonify({"errors": errors}), 400
 
-    # --- create + persist ---
     next_id = int(data.get("nextId", len(teams) + 1))
     new_team = {
         "id": str(next_id),
@@ -233,5 +224,4 @@ def create_team():
 
 
 if __name__ == "__main__":
-    # Local dev only
     app.run(debug=True)
