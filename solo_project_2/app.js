@@ -12,20 +12,10 @@ let teams = [];
 let currentPage = 1;
 
 let editingId = null;
-let nextTeamId = null;
 
 // ===== Step 1: Page size + cookie persistence =====
 const PAGE_SIZE_COOKIE = "pageSize";
 const ALLOWED_PAGE_SIZES = [5, 10, 20, 50];
-
-const FALLBACK_IMG = "https://placehold.co/80x80?text=No+Image";
-
-function safeImg(url, name) {
-  // If url is empty, generate a readable placeholder from the team name.
-  if (url && String(url).trim()) return String(url).trim();
-  const label = encodeURIComponent((name || "Team").slice(0, 12));
-  return `https://placehold.co/80x80?text=${label}`;
-}
 
 function getCookie(name) {
   const cookies = document.cookie ? document.cookie.split("; ") : [];
@@ -48,11 +38,45 @@ function normalizePageSize(raw) {
 }
 
 let pageSize = normalizePageSize(getCookie(PAGE_SIZE_COOKIE) ?? 10);
-// Keep cookie in sync (if missing/invalid)
 setCookie(PAGE_SIZE_COOKIE, pageSize);
 
+// ===== Step 4: Search / Filter / Sort state =====
+let searchQuery = "";
+let leagueFilter = "";
+let sortField = "name";
+let sortDir = "asc";
+let leaguesCache = [];
+
+// ===== Step 3: Image fallback =====
+const FALLBACK_IMG = "https://placehold.co/80x80?text=No+Image";
+
+function safeImg(url, name) {
+  if (url && String(url).trim()) return String(url).trim();
+  const label = encodeURIComponent((name || "Team").slice(0, 12));
+  return `https://placehold.co/80x80?text=${label}`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 async function loadTeams(page = 1) {
-  const res = await fetch(`${API_BASE}/teams?page=${page}&pageSize=${pageSize}`);
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+
+  if (searchQuery.trim()) params.set("q", searchQuery.trim());
+  if (leagueFilter) params.set("league", leagueFilter);
+
+  params.set("sort", sortField);
+  params.set("dir", sortDir);
+
+  const res = await fetch(`${API_BASE}/teams?${params.toString()}`);
   if (!res.ok) throw new Error(`Failed to load teams (HTTP ${res.status})`);
 
   const data = await res.json();
@@ -61,11 +85,6 @@ async function loadTeams(page = 1) {
   currentPage = data.page;
 
   totalCount = data.totalCount;
-
-  // IMPORTANT:
-  // Step 2 will make the backend honor pageSize.
-  // For now, we compute totalPages using the *selected* pageSize,
-  // so UI logic is already correct once backend is updated.
   totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   renderList();
@@ -79,6 +98,9 @@ async function loadStats() {
   statsTotalCount = data.totalCount;
   statsTeamsPerLeague = data.teamsPerLeague || {};
 
+  // Populate league dropdown options
+  leaguesCache = Object.keys(statsTeamsPerLeague).sort((a, b) => a.localeCompare(b));
+
   renderStats();
 }
 
@@ -91,13 +113,9 @@ function show(view) {
   formView.style.display = "none";
   statsView.style.display = "none";
 
-  if (view === "list") {
-    listView.style.display = "block";
-  } else if (view === "form") {
-    formView.style.display = "block";
-  } else if (view === "stats") {
-    statsView.style.display = "block";
-  }
+  if (view === "list") listView.style.display = "block";
+  if (view === "form") formView.style.display = "block";
+  if (view === "stats") statsView.style.display = "block";
 }
 
 function renderList() {
@@ -113,26 +131,79 @@ function renderList() {
     (s) => `<option value="${s}" ${s === pageSize ? "selected" : ""}>${s}</option>`
   ).join("");
 
+  const leagueOptions = [
+    `<option value="">All leagues</option>`,
+    ...leaguesCache.map(l => `<option value="${escapeHtml(l)}" ${l === leagueFilter ? "selected" : ""}>${escapeHtml(l)}</option>`)
+  ].join("");
+
+  const sortOptions = [
+    ["name", "Name"],
+    ["founded", "Founded"],
+    ["league", "League"],
+    ["country", "Country"]
+  ].map(([v, label]) => `<option value="${v}" ${v === sortField ? "selected" : ""}>${label}</option>`).join("");
+
   let html = `
     <h2>Teams</h2>
 
-    <div style="display:flex; align-items:center; gap:10px; margin:10px 0; flex-wrap:wrap;">
+    <div class="toolbar">
       <button id="prevPage" ${prevDisabled}>Previous</button>
       <div><b>Page ${currentPage}</b> of ${totalPages}</div>
       <button id="nextPage" ${nextDisabled}>Next</button>
 
-      <label style="margin-left:10px;">
+      <label class="toolbar-item">
         Page size:
-        <select id="pageSizeSelect" style="margin-left:6px;">
+        <select id="pageSizeSelect">
           ${pageSizeOptions}
         </select>
       </label>
 
-      <div style="margin-left:auto;">Showing ${startNum}–${endNum} of ${totalCount}</div>
-    </div>
+      <label class="toolbar-item">
+        Search:
+        <input id="searchInput" type="text" placeholder="e.g., Real" value="${escapeHtml(searchQuery)}" />
+      </label>
 
+      <label class="toolbar-item">
+        League:
+        <select id="leagueSelect">
+          ${leagueOptions}
+        </select>
+      </label>
+
+      <label class="toolbar-item">
+        Sort:
+        <select id="sortSelect">
+          ${sortOptions}
+        </select>
+      </label>
+
+      <label class="toolbar-item">
+        Dir:
+        <select id="dirSelect">
+          <option value="asc" ${sortDir === "asc" ? "selected" : ""}>Asc</option>
+          <option value="desc" ${sortDir === "desc" ? "selected" : ""}>Desc</option>
+        </select>
+      </label>
+
+      <button id="applyFilters" class="toolbar-item">Apply</button>
+      <button id="clearFilters" class="toolbar-item">Clear</button>
+
+      <div class="toolbar-spacer"></div>
+      <div>Showing ${startNum}–${endNum} of ${totalCount}</div>
+    </div>
+  `;
+
+  if (!teams.length) {
+    html += `<p class="empty-state">No results found. Try changing your search/filter.</p>`;
+    list.innerHTML = html;
+    wireToolbarHandlers();
+    return;
+  }
+
+  html += `
     <table border="1" cellpadding="6">
       <tr>
+        <th>Image</th>
         <th>Name</th>
         <th>League</th>
         <th>Country</th>
@@ -146,20 +217,20 @@ function renderList() {
     const t = teams[i];
     html += `
       <tr>
-        <td>${t.name}</td>
-        <td>${t.league}</td>
-        <td>${t.country}</td>
-        <td>${t.founded}</td>
-        <td>${t.stadium || ""}</td>
         <td>
           <img class="team-thumb"
-              src="${safeImg(t.imageUrl, t.name)}"
-              alt="${t.name} logo"
-              onerror="this.onerror=null; this.src='${FALLBACK_IMG}';" />
+               src="${safeImg(t.imageUrl, t.name)}"
+               alt="${escapeHtml(t.name)} logo"
+               onerror="this.onerror=null; this.src='${FALLBACK_IMG}';" />
         </td>
+        <td>${escapeHtml(t.name)}</td>
+        <td>${escapeHtml(t.league)}</td>
+        <td>${escapeHtml(t.country)}</td>
+        <td>${escapeHtml(t.founded)}</td>
+        <td>${escapeHtml(t.stadium || "")}</td>
         <td>
-          <button onclick="editTeam('${t.id}')">Edit</button>
-          <button onclick="deleteTeam('${t.id}')">Delete</button>
+          <button onclick="editTeam('${escapeHtml(t.id)}')">Edit</button>
+          <button onclick="deleteTeam('${escapeHtml(t.id)}')">Delete</button>
         </td>
       </tr>
     `;
@@ -168,6 +239,10 @@ function renderList() {
   html += `</table>`;
   list.innerHTML = html;
 
+  wireToolbarHandlers();
+}
+
+function wireToolbarHandlers() {
   document.getElementById("prevPage")?.addEventListener("click", () => {
     if (currentPage > 1) loadTeams(currentPage - 1);
   });
@@ -177,12 +252,33 @@ function renderList() {
   });
 
   document.getElementById("pageSizeSelect")?.addEventListener("change", async (e) => {
-    const newSize = normalizePageSize(e.target.value);
-    pageSize = newSize;
+    pageSize = normalizePageSize(e.target.value);
     setCookie(PAGE_SIZE_COOKIE, pageSize);
-
-    // Reset to page 1 to avoid landing on an out-of-range page.
     await loadTeams(1);
+  });
+
+  document.getElementById("applyFilters")?.addEventListener("click", async () => {
+    searchQuery = document.getElementById("searchInput").value;
+    leagueFilter = document.getElementById("leagueSelect").value;
+    sortField = document.getElementById("sortSelect").value;
+    sortDir = document.getElementById("dirSelect").value;
+    await loadTeams(1);
+  });
+
+  document.getElementById("clearFilters")?.addEventListener("click", async () => {
+    searchQuery = "";
+    leagueFilter = "";
+    sortField = "name";
+    sortDir = "asc";
+    await loadTeams(1);
+  });
+
+  // Optional: press Enter in search box to apply
+  document.getElementById("searchInput")?.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("applyFilters")?.click();
+    }
   });
 }
 
@@ -191,14 +287,14 @@ function renderStats() {
 
   let list = "<ul>";
   for (const league in statsTeamsPerLeague) {
-    list += `<li>${league}: ${statsTeamsPerLeague[league]}</li>`;
+    list += `<li>${escapeHtml(league)}: ${escapeHtml(statsTeamsPerLeague[league])}</li>`;
   }
   list += "</ul>";
 
   stats.innerHTML = `
     <h2>Stats</h2>
-    <p><b>Total teams (entire dataset):</b> ${statsTotalCount}</p>
-    <p><b>Current page size:</b> ${pageSize}</p>
+    <p><b>Total teams (entire dataset):</b> ${escapeHtml(statsTotalCount)}</p>
+    <p><b>Current page size:</b> ${escapeHtml(pageSize)}</p>
     <p><b>Teams per league (entire dataset):</b></p>
     ${list}
   `;
@@ -350,17 +446,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       editingId = null;
-
     } catch (err) {
       console.error(err);
       showFormErrors({ form: "Could not save team. Is the backend running?" });
     }
   });
 
+  // Preload stats in background so league dropdown is populated
+  loadStats().catch(() => {});
+
   show("list");
   loadTeams(1).catch((err) => {
     console.error(err);
-    alert("Could not load teams from backend. Make sure Flask is running on 127.0.0.1:5000.");
+    alert("Could not load teams from backend. Make sure Flask is running.");
   });
 });
 
@@ -377,7 +475,7 @@ function showFormErrors(errors) {
 
   let html = "<ul>";
   for (const field in errors) {
-    html += `<li><b>${field}:</b> ${errors[field]}</li>`;
+    html += `<li><b>${escapeHtml(field)}:</b> ${escapeHtml(errors[field])}</li>`;
   }
   html += "</ul>";
 

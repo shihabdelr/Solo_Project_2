@@ -27,14 +27,12 @@ header button:hover {
   transform: translateY(-5px);
 }
 
-
 section {
   background-color: white;
   margin: 20px;
   padding: 15px;
   border-radius: 4px;
 }
-
 
 table {
   width: 100%;
@@ -44,6 +42,7 @@ table {
 th, td {
   padding: 8px;
   text-align: left;
+  vertical-align: middle;
 }
 
 th {
@@ -67,10 +66,42 @@ td button {
   margin-right: 5px;
 }
 
+/* Step 3: image thumbnails */
 .team-thumb {
   width: 56px;
   height: 56px;
   object-fit: cover;
   border-radius: 8px;
   display: block;
+}
+
+/* Step 4: toolbar layout */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+
+.toolbar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar input,
+.toolbar select {
+  width: auto;
+  min-width: 120px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.empty-state {
+  padding: 12px;
+  background: #f7f7f7;
+  border-radius: 8px;
 }
