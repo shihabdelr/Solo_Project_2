@@ -66,3 +66,11 @@ form button,
 td button {
   margin-right: 5px;
 }
+
+.team-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}

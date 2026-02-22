@@ -2,16 +2,24 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import json
 import os
+import math
+from urllib.parse import quote
 
 app = Flask(__name__)
 CORS(app)
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "teams.json")
 
+ALLOWED_PAGE_SIZES = {5, 10, 20, 50}
+DEFAULT_PAGE_SIZE = 10
 
 def load_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
+
+def placeholder_image_url(team_name: str) -> str:
+    label = (team_name or "Team")[:12]
+    return f"https://placehold.co/80x80?text={quote(label)}"
 
 def save_data(data):
     tmp_path = DATA_FILE + ".tmp"
@@ -27,7 +35,14 @@ def home():
 
 @app.get("/api/teams")
 def get_teams():
-    page_size = 10
+    # Step 2: support configurable paging via ?pageSize= (5/10/20/50)
+    raw_page_size = request.args.get("pageSize", str(DEFAULT_PAGE_SIZE))
+    try:
+        page_size = int(raw_page_size)
+    except ValueError:
+        page_size = DEFAULT_PAGE_SIZE
+    if page_size not in ALLOWED_PAGE_SIZES:
+        page_size = DEFAULT_PAGE_SIZE
 
     try:
         page = int(request.args.get("page", "1"))
@@ -39,6 +54,10 @@ def get_teams():
     data = load_data()
     teams = data.get("teams", [])
     total_count = len(teams)
+
+    total_pages = max(1, math.ceil(total_count / page_size)) if total_count else 1
+    if page > total_pages:
+        page = total_pages
 
     start = (page - 1) * page_size
     end = start + page_size
@@ -101,6 +120,11 @@ def update_team(team_id):
         errors["founded"] = "Founded must be 1701 or later."
     if not stadium:
         errors["stadium"] = "Stadium is required."
+    image_url = get_str("imageUrl")
+    if image_url and not (image_url.startswith("http://") or image_url.startswith("https://")):
+        errors["imageUrl"] = "Image URL must start with http:// or https://"
+    if not image_url:
+        image_url = placeholder_image_url(name)
 
     data = load_data()
     teams = data.get("teams", [])
@@ -189,6 +213,11 @@ def create_team():
         errors["founded"] = "Founded must be 1701 or later."
     if not stadium:
         errors["stadium"] = "Stadium is required."
+    image_url = get_str("imageUrl")
+    if image_url and not (image_url.startswith("http://") or image_url.startswith("https://")):
+        errors["imageUrl"] = "Image URL must start with http:// or https://"
+    if not image_url:
+        image_url = placeholder_image_url(name)
 
     data = load_data()
     teams = data.get("teams", [])

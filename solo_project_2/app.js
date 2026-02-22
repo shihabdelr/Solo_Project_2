@@ -18,6 +18,15 @@ let nextTeamId = null;
 const PAGE_SIZE_COOKIE = "pageSize";
 const ALLOWED_PAGE_SIZES = [5, 10, 20, 50];
 
+const FALLBACK_IMG = "https://placehold.co/80x80?text=No+Image";
+
+function safeImg(url, name) {
+  // If url is empty, generate a readable placeholder from the team name.
+  if (url && String(url).trim()) return String(url).trim();
+  const label = encodeURIComponent((name || "Team").slice(0, 12));
+  return `https://placehold.co/80x80?text=${label}`;
+}
+
 function getCookie(name) {
   const cookies = document.cookie ? document.cookie.split("; ") : [];
   for (let i = 0; i < cookies.length; i++) {
@@ -143,6 +152,12 @@ function renderList() {
         <td>${t.founded}</td>
         <td>${t.stadium || ""}</td>
         <td>
+          <img class="team-thumb"
+              src="${safeImg(t.imageUrl, t.name)}"
+              alt="${t.name} logo"
+              onerror="this.onerror=null; this.src='${FALLBACK_IMG}';" />
+        </td>
+        <td>
           <button onclick="editTeam('${t.id}')">Edit</button>
           <button onclick="deleteTeam('${t.id}')">Delete</button>
         </td>
@@ -195,6 +210,7 @@ function fillForm(team) {
   const countryInput = document.getElementById("country");
   const foundedInput = document.getElementById("founded");
   const stadiumInput = document.getElementById("stadium");
+  const imageUrlInput = document.getElementById("imageUrl");
 
   if (team !== null) {
     nameInput.value = team.name;
@@ -202,12 +218,14 @@ function fillForm(team) {
     countryInput.value = team.country;
     foundedInput.value = team.founded;
     stadiumInput.value = team.stadium;
+    imageUrlInput.value = team.imageUrl || "";
   } else {
     nameInput.value = "";
     leagueInput.value = "";
     countryInput.value = "";
     foundedInput.value = "";
     stadiumInput.value = "";
+    imageUrlInput.value = "";
   }
 }
 
@@ -289,7 +307,8 @@ document.addEventListener("DOMContentLoaded", () => {
       league: document.getElementById("league").value,
       country: document.getElementById("country").value,
       founded: document.getElementById("founded").value,
-      stadium: document.getElementById("stadium").value
+      stadium: document.getElementById("stadium").value,
+      imageUrl: document.getElementById("imageUrl").value
     };
 
     const url = editingId
