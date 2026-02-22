@@ -8,15 +8,42 @@ let totalPages = 1;
 let statsTotalCount = 0;
 let statsTeamsPerLeague = {};
 
-
 let teams = [];
 let currentPage = 1;
 
 let editingId = null;
-let nextTeamId = null; 
+let nextTeamId = null;
+
+// ===== Step 1: Page size + cookie persistence =====
+const PAGE_SIZE_COOKIE = "pageSize";
+const ALLOWED_PAGE_SIZES = [5, 10, 20, 50];
+
+function getCookie(name) {
+  const cookies = document.cookie ? document.cookie.split("; ") : [];
+  for (let i = 0; i < cookies.length; i++) {
+    const [k, ...rest] = cookies[i].split("=");
+    if (k === name) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
+
+function setCookie(name, value, days = 90) {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(String(value))}; Expires=${expires}; Path=/; SameSite=Lax`;
+}
+
+function normalizePageSize(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 10;
+  return ALLOWED_PAGE_SIZES.includes(n) ? n : 10;
+}
+
+let pageSize = normalizePageSize(getCookie(PAGE_SIZE_COOKIE) ?? 10);
+// Keep cookie in sync (if missing/invalid)
+setCookie(PAGE_SIZE_COOKIE, pageSize);
 
 async function loadTeams(page = 1) {
-  const res = await fetch(`${API_BASE}/teams?page=${page}`);
+  const res = await fetch(`${API_BASE}/teams?page=${page}&pageSize=${pageSize}`);
   if (!res.ok) throw new Error(`Failed to load teams (HTTP ${res.status})`);
 
   const data = await res.json();
@@ -25,7 +52,12 @@ async function loadTeams(page = 1) {
   currentPage = data.page;
 
   totalCount = data.totalCount;
-  totalPages = Math.max(1, Math.ceil(totalCount / data.pageSize));
+
+  // IMPORTANT:
+  // Step 2 will make the backend honor pageSize.
+  // For now, we compute totalPages using the *selected* pageSize,
+  // so UI logic is already correct once backend is updated.
+  totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   renderList();
 }
@@ -62,19 +94,31 @@ function show(view) {
 function renderList() {
   const list = document.getElementById("listView");
 
-  const startNum = totalCount === 0 ? 0 : (currentPage - 1) * 10 + 1;
-  const endNum = Math.min(currentPage * 10, totalCount);
+  const startNum = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endNum = Math.min(currentPage * pageSize, totalCount);
 
   const prevDisabled = currentPage <= 1 ? "disabled" : "";
   const nextDisabled = currentPage >= totalPages ? "disabled" : "";
 
+  const pageSizeOptions = ALLOWED_PAGE_SIZES.map(
+    (s) => `<option value="${s}" ${s === pageSize ? "selected" : ""}>${s}</option>`
+  ).join("");
+
   let html = `
     <h2>Teams</h2>
 
-    <div style="display:flex; align-items:center; gap:10px; margin:10px 0;">
+    <div style="display:flex; align-items:center; gap:10px; margin:10px 0; flex-wrap:wrap;">
       <button id="prevPage" ${prevDisabled}>Previous</button>
       <div><b>Page ${currentPage}</b> of ${totalPages}</div>
       <button id="nextPage" ${nextDisabled}>Next</button>
+
+      <label style="margin-left:10px;">
+        Page size:
+        <select id="pageSizeSelect" style="margin-left:6px;">
+          ${pageSizeOptions}
+        </select>
+      </label>
+
       <div style="margin-left:auto;">Showing ${startNum}–${endNum} of ${totalCount}</div>
     </div>
 
@@ -116,6 +160,15 @@ function renderList() {
   document.getElementById("nextPage")?.addEventListener("click", () => {
     if (currentPage < totalPages) loadTeams(currentPage + 1);
   });
+
+  document.getElementById("pageSizeSelect")?.addEventListener("change", async (e) => {
+    const newSize = normalizePageSize(e.target.value);
+    pageSize = newSize;
+    setCookie(PAGE_SIZE_COOKIE, pageSize);
+
+    // Reset to page 1 to avoid landing on an out-of-range page.
+    await loadTeams(1);
+  });
 }
 
 function renderStats() {
@@ -130,6 +183,7 @@ function renderStats() {
   stats.innerHTML = `
     <h2>Stats</h2>
     <p><b>Total teams (entire dataset):</b> ${statsTotalCount}</p>
+    <p><b>Current page size:</b> ${pageSize}</p>
     <p><b>Teams per league (entire dataset):</b></p>
     ${list}
   `;
@@ -185,7 +239,6 @@ window.editTeam = function (id) {
   show("form");
 };
 
-
 window.deleteTeam = async function (id) {
   const ok = confirm("Delete this team? This cannot be undone.");
   if (!ok) return;
@@ -204,7 +257,7 @@ window.deleteTeam = async function (id) {
     }
 
     const newTotal = totalCount - 1;
-    const newTotalPages = Math.max(1, Math.ceil(newTotal / 10));
+    const newTotalPages = Math.max(1, Math.ceil(newTotal / pageSize));
     const targetPage = Math.min(currentPage, newTotalPages);
 
     await loadTeams(targetPage);
@@ -271,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (method === "POST") {
         const newTotal = totalCount + 1;
-        const newTotalPages = Math.max(1, Math.ceil(newTotal / 10));
+        const newTotalPages = Math.max(1, Math.ceil(newTotal / pageSize));
         await loadTeams(newTotalPages);
       } else {
         await loadTeams(currentPage);
