@@ -19,7 +19,13 @@ def get_db_conn():
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
-    return psycopg2.connect(url, sslmode="require")
+
+    return psycopg2.connect(
+        url,
+        sslmode="require",
+        connect_timeout=5,
+        options="-c statement_timeout=5000"
+    )
 
 def init_db():
     schema = """
