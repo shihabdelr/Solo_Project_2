@@ -97,6 +97,30 @@ def normalize_image_url(team_name: str, image_url: str) -> str:
 def home():
     return "Backend is running", 200
 
+@app.get("/api/health")
+def health():
+    return jsonify({"ok": True}), 200
+
+@app.get("/api/health/db")
+def health_db():
+    try:
+        with get_db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1;")
+                cur.fetchone()
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+def get_db_conn():
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set")
+    conn = psycopg2.connect(url, connect_timeout=5, sslmode="prefer")
+    with conn.cursor() as cur:
+        cur.execute("SET statement_timeout TO 5000;")  # 5 seconds
+    return conn
+
 
 @app.get("/api/teams")
 def get_teams():
