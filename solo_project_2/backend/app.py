@@ -7,7 +7,7 @@ from urllib.parse import quote
 import psycopg2
 from psycopg2 import errors as pg_errors
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
 # Try both locations so this works whether teams.json is in /data or alongside app.py
@@ -135,8 +135,8 @@ def normalize_image_url(team_name: str, image_url: str) -> str:
 
 # ---- Routes ----
 @app.get("/")
-def home():
-    return "Backend is running", 200
+def serve_frontend():
+    return app.send_static_file("index.html")
 
 @app.get("/api/health")
 def health():
