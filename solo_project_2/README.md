@@ -1,27 +1,47 @@
-Solo Project 2
+Solo Project 3 — Soccer Teams Collection Manager
 
-This project is a cloud hosted collection manager built using a client/server architecture. The frontend is implemented with HTML, CSS, and JavaScript and is deployed on Netlify, while the backend is a Flask application hosted on Render. All data is persisted on the server using JSON files, so that it maintains its state across refreshes, incognito sessions, and different devices. The application supports full CRUD functionality through backend API routes, enforces server-side validation, and implements fixed paging with 10 records per page. A stats view includes total record counts and domain-specific metrics. This project shows proper separation of concerns, HTTP-based client/server communication, and server-side data persistence.
+Domain name + registrar
+  Domain: https://solo-project-2-7rmr.onrender.com`
+  Registrar: N/A this is a Render-provided onrender.com subdomain, not a custom purchased domain
 
-Loom Video Link: https://www.loom.com/share/587ebdb0682342779b973548c6c87d5e
+Hosting provider
+  Render
+    Web Service: Flask backend + serves the frontend files
+    Render Postgres: managed PostgreSQL database
 
-Frontend URL: https://soloproj.netlify.app/
+Tech stack
+  Backend: Python + Flask, gunicorn (production server), psycopg2 (Postgres driver)
+  Frontend: HTML + CSS + Vanilla JavaScript (served by Flask)
+  API: REST-style JSON endpoints under /api/*
+  File uploads (images): saved under backend/static/uploads/ and referenced as /static/uploads/<filename>
 
-Backend Base URL: https://solo-project-2-5s58.onrender.com/api
+Database type & where it is hosted
+  Database: PostgreSQL
+  Hosted on: Render (managed Postgres instance attached to the project)
+  Connection: via `DATABASE_URL` environment variable
 
-Languages
-Frontend: HTML, CSS, JavaScript
-Backend: Python Flask
+## How to deploy and update the app
 
-All records are stored on the server in a JSON file: `backend/data/teams.json`
+Initial deploy (Render)
+1. Push code to GitHub.
+2. Create a "Render Web Service" connected to the GitHub repo.
+3. Set the service start command to run Gunicorn:
+    I used: gunicorn app:app --bind 0.0.0.0:$PORT
+4. Create a "Render Postgres" database in the same project.
+5. Add the database connection string as an environment variable:
+    `DATABASE_URL` = (Render Postgres “External Database URL” or “Internal Database URL”, depending on your setup)
 
-API Routes
-`GET /api/teams?page=1`: 10 page list
-`POST /api/teams`: create a new record (server validation)
-`PUT /api/teams/<id>`: update an existing record (server validation)
-`DELETE /api/teams/<id>`: delete a record (with confirmation on client)
-`GET /api/stats`: total records + teams-per-league stats
+Update / redeploy
+  Push a new commit to the connected GitHub branch.
+  If auto-deploy is enabled, Render redeploys automatically.
+  Else: Render Dashboard → Web Service → Manual Deploy → “Deploy latest commit”.
 
+Local development:
+  From the backend/ folder:
 
-Input Validation
-Client-side: required fields in form + basic input constraints
-Server-side: required fields, founded must be numeric and >= 1701, unique team name
+1. Create a virtual environment and install dependencies:
+   ```bash
+   python -m venv .venv
+   # Windows: .venv\Scripts\activate
+   # Mac/Linux: source .venv/bin/activate
+   pip install -r requirements.txt

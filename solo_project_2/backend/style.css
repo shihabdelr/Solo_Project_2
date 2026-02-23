@@ -1,39 +1,208 @@
+/* ---------- Base layout ---------- */
+* {
+  box-sizing: border-box;
+}
+
 body {
   background-color: white;
   margin: 0;
   padding: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  line-height: 1.35;
 }
 
+/* Make the app use more of the screen */
+section {
+  background-color: white;
+  /* wider, centered container */
+  width: min(1400px, calc(100vw - 48px));
+  margin: 24px auto;
+  padding: 22px 24px;
+  border-radius: 10px;
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* ---------- Header ---------- */
 header {
   background-color: rgb(29, 211, 235);
   color: white;
-  padding: 15px;
+  padding: 18px 12px;
   text-align: center;
 }
 
+header h1 {
+  margin: 0 0 10px 0;
+}
+
 header button {
-  margin: 5px;
-  padding: 8px 12px;
+  margin: 6px;
+  padding: 10px 14px;
   border: none;
   background-color: blue;
   color: white;
   cursor: pointer;
   font-weight: bold;
-  border-radius: 20px;
+  border-radius: 999px;
 }
 
 header button:hover {
-  background-color: blue;
-  transform: translateY(-5px);
+  transform: translateY(-2px);
 }
 
-section {
-  background-color: white;
-  margin: 20px;
-  padding: 15px;
-  border-radius: 4px;
+/* ---------- Inputs / forms ---------- */
+input, select, button, textarea {
+  font: inherit;
 }
 
+input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+}
+
+form button,
+#cancel {
+  margin-top: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  background: #f6f6f6;
+}
+
+form button:hover,
+#cancel:hover {
+  background: #eeeeee;
+}
+
+/* ---------- Filters + pager (from your JS) ---------- */
+.filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto auto auto auto auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.filters input {
+  margin-top: 0; /* override input default */
+}
+
+.filters button {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  background: #f6f6f6;
+  cursor: pointer;
+}
+
+.filters button:hover {
+  background: #eeeeee;
+}
+
+/* Make filters wrap nicely on smaller screens */
+@media (max-width: 900px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 18px 0;
+}
+
+.pager button {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  background: #f6f6f6;
+  cursor: pointer;
+}
+
+.pager button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Team list cards ---------- */
+.team-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.team-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 14px;
+  border: 1px solid #e7e7e7;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.team-main {
+  min-width: 0;
+}
+
+.team-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.team-sub {
+  color: #444;
+  margin: 2px 0;
+}
+
+/* Thumbnail (you already had this, just slightly larger) */
+.team-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 14px;
+  display: block;
+  border: 1px solid #e7e7e7;
+  background: #f3f3f3;
+}
+
+.team-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.team-actions button {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  background: #f6f6f6;
+  cursor: pointer;
+}
+
+.team-actions button:hover {
+  background: #eeeeee;
+}
+
+@media (max-width: 700px) {
+  .team-row {
+    grid-template-columns: 72px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .team-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* ---------- Table (if you still use any) ---------- */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -49,59 +218,18 @@ th {
   background-color: white;
 }
 
-input {
-  width: 100%;
-  padding: 6px;
-  margin-top: 4px;
-}
-
-form button,
-#cancel {
-  margin-top: 10px;
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-td button {
-  margin-right: 5px;
-}
-
-/* Step 3: image thumbnails */
-.team-thumb {
-  width: 56px;
-  height: 56px;
-  object-fit: cover;
-  border-radius: 8px;
-  display: block;
-}
-
-/* Step 4: toolbar layout */
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 10px 0;
-  flex-wrap: wrap;
-}
-
-.toolbar-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.toolbar input,
-.toolbar select {
-  width: auto;
-  min-width: 120px;
-}
-
-.toolbar-spacer {
-  flex: 1;
-}
-
+/* ---------- Misc ---------- */
 .empty-state {
   padding: 12px;
   background: #f7f7f7;
   border-radius: 8px;
+}
+
+.form-errors {
+  background: #fff1f1;
+  border: 1px solid #ffd0d0;
+  color: #8a0000;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 12px;
 }
