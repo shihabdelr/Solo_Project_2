@@ -118,15 +118,6 @@ def health_db():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-def get_db_conn():
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
-    conn = psycopg2.connect(url, connect_timeout=5, sslmode="prefer")
-    with conn.cursor() as cur:
-        cur.execute("SET statement_timeout TO 5000;")  # 5 seconds
-    return conn
-
 
 @app.get("/api/teams")
 def get_teams():
