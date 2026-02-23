@@ -23,7 +23,7 @@
   <section id="formView" style="display:none;">
     <h2 id="submitBtn">Add Team</h2>
 
-    <form id="teamForm">
+    <form id="teamForm" enctype="multipart/form-data">
       <div id="formErrors" class="form-errors" style="display:none;"></div>
 
       <p>
@@ -52,8 +52,8 @@
       </p>
 
       <p>
-        <label>Image URL:</label><br />
-        <input id="imageUrl" type="url" placeholder="https://example.com/team.png" required />
+        <label>Image File (optional):</label><br />
+        <input id="imageFile" type="file" accept="image/*" />
       </p>
 
       <button type="submit">Save</button>

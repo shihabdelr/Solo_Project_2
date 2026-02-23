@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import json
 import os
@@ -6,23 +6,33 @@ import math
 from urllib.parse import quote
 import psycopg2
 from psycopg2 import errors as pg_errors
+from werkzeug.utils import secure_filename
+import uuid
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+# Serve /static/* from backend/static
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 CORS(app)
 
-# Try both locations so this works whether teams.json is in /data or alongside app.py
+# --- Paths ---
 BASE_DIR = os.path.dirname(__file__)
+
+# Support both locations, so seed works whether teams.json is in backend/data or backend/
 DATA_FILE_CANDIDATES = [
     os.path.join(BASE_DIR, "data", "teams.json"),
     os.path.join(BASE_DIR, "teams.json"),
 ]
 
-# Configurable paging
+UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# --- Paging ---
 ALLOWED_PAGE_SIZES = {5, 10, 20, 50}
 DEFAULT_PAGE_SIZE = 10
 
-# ---- DB helpers ----
+# --- DB ---
 _db_initialized = False
+
 
 def get_db_conn():
     url = os.environ.get("DATABASE_URL")
@@ -36,6 +46,7 @@ def get_db_conn():
         connect_timeout=5,
         options="-c statement_timeout=5000",
     )
+
 
 def init_db():
     schema = """
@@ -56,47 +67,53 @@ def init_db():
         with conn.cursor() as cur:
             cur.execute(schema)
 
+
 def ensure_db_initialized():
-    """
-    Lazily initialize DB (creates tables). IMPORTANT: do NOT run this at import time
-    or Render's port scan can time out.
-    """
     global _db_initialized
     if not _db_initialized:
         init_db()
         _db_initialized = True
 
+
 @app.before_request
 def lazy_init_db():
     """
-    Initialize DB only when we’re about to hit endpoints that likely need it.
-    Skip health + root so Render can port-scan successfully even if DB is slow.
+    Avoid DB work for basic static/front-end routes so Render can start quickly.
+    Only initialize DB for API routes that need tables.
     """
     if request.method == "OPTIONS":
         return
-    if request.path in ["/", "/api/health"]:
+
+    # Frontend + static should never block on DB
+    if request.path in ["/", "/index.html", "/app.js", "/style.css", "/favicon.ico"]:
         return
-    # /api/health/db should attempt DB connection but doesn't need schema
-    if request.path == "/api/health/db":
+    if request.path.startswith("/static/"):
         return
-    # Everything else under /api expects the teams table to exist
+
+    # Health endpoints: /api/health doesn't need DB, /api/health/db does its own connect test
+    if request.path in ["/api/health", "/api/health/db"]:
+        return
+
+    # Everything else under /api should ensure tables exist
     if request.path.startswith("/api/"):
         ensure_db_initialized()
 
-# ---- JSON helpers (for seeding) ----
+
+# --- JSON seed helpers ---
 def find_data_file():
     for p in DATA_FILE_CANDIDATES:
         if os.path.exists(p):
             return p
-    # If none found, return the default (so the error message is still useful)
     return DATA_FILE_CANDIDATES[0]
+
 
 def load_data():
     path = find_data_file()
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# ---- Normalizers ----
+
+# --- Normalizers ---
 def normalize_page_size(raw):
     try:
         n = int(raw)
@@ -104,12 +121,14 @@ def normalize_page_size(raw):
         return DEFAULT_PAGE_SIZE
     return n if n in ALLOWED_PAGE_SIZES else DEFAULT_PAGE_SIZE
 
+
 def normalize_page(raw):
     try:
         p = int(raw)
     except (TypeError, ValueError):
         return 1
     return p if p >= 1 else 1
+
 
 def normalize_sort(sort_field, sort_dir):
     allowed = {"name", "founded", "league", "country"}
@@ -121,26 +140,69 @@ def normalize_sort(sort_field, sort_dir):
         sd = "asc"
     return sf, sd
 
+
+# --- Image helpers ---
 def placeholder_image_url(team_name: str) -> str:
     label = (team_name or "Team")[:12]
     return f"https://placehold.co/80x80?text={quote(label)}"
 
-def normalize_image_url(team_name: str, image_url: str) -> str:
-    """If empty, return placeholder. If provided, must be http(s)."""
-    if not image_url:
-        return placeholder_image_url(team_name)
-    if image_url.startswith("http://") or image_url.startswith("https://"):
-        return image_url
-    return ""  # invalid marker (caller should add validation error)
 
-# ---- Routes ----
+def allowed_image_filename(filename: str) -> bool:
+    _, ext = os.path.splitext(filename.lower())
+    return ext in ALLOWED_IMAGE_EXTS
+
+
+def save_uploaded_image(file_storage):
+    """
+    Saves an uploaded image to backend/static/uploads and returns public URL path,
+    e.g. /static/uploads/abc123.jpg
+    """
+    if not file_storage or not file_storage.filename:
+        return None
+
+    filename = secure_filename(file_storage.filename)
+    if not allowed_image_filename(filename):
+        raise ValueError("Unsupported file type. Allowed: png, jpg, jpeg, gif, webp")
+
+    ext = os.path.splitext(filename)[1].lower()
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+
+    save_path = os.path.join(UPLOAD_DIR, unique_name)
+    file_storage.save(save_path)
+
+    return f"/static/uploads/{unique_name}"
+
+
+# -----------------------
+# Frontend serving routes
+# -----------------------
 @app.get("/")
-def serve_frontend():
-    return app.send_static_file("index.html")
+def serve_index():
+    return send_from_directory(BASE_DIR, "index.html")
 
+
+@app.get("/index.html")
+def serve_index_explicit():
+    return send_from_directory(BASE_DIR, "index.html")
+
+
+@app.get("/app.js")
+def serve_app_js():
+    return send_from_directory(BASE_DIR, "app.js")
+
+
+@app.get("/style.css")
+def serve_style_css():
+    return send_from_directory(BASE_DIR, "style.css")
+
+
+# -------------
+# API endpoints
+# -------------
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True}), 200
+
 
 @app.get("/api/health/db")
 def health_db():
@@ -152,6 +214,7 @@ def health_db():
         return jsonify({"ok": True}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.get("/api/teams")
 def get_teams():
@@ -175,7 +238,6 @@ def get_teams():
 
     if league_filter:
         where_clauses.append("league ILIKE %(league)s")
-        # allow partial match like q does (you can change to exact by removing %)
         params["league"] = f"%{league_filter}%"
 
     where_sql = ""
@@ -229,6 +291,7 @@ def get_teams():
         "pageSize": page_size,
     })
 
+
 @app.get("/api/stats")
 def get_stats():
     with get_db_conn() as conn:
@@ -251,26 +314,110 @@ def get_stats():
         "teamsPerLeague": teams_per_league
     })
 
-@app.put("/api/teams/<team_id>")
-def update_team(team_id):
-    payload = request.get_json(silent=True) or {}
-    errors = {}
 
-    def get_str(field):
-        v = payload.get(field, "")
-        return v.strip() if isinstance(v, str) else ""
+@app.post("/api/upload")
+def upload_image():
+    """
+    Optional helper endpoint if you ever want to upload first, then save the URL.
+    Frontend in this solution uploads as part of create/update, so you may not use this.
+    """
+    if "image" not in request.files:
+        return jsonify({"error": "No file provided. Use form field name 'image'."}), 400
 
-    name = get_str("name")
-    league = get_str("league")
-    country = get_str("country")
-    stadium = get_str("stadium")
-    image_url_raw = get_str("imageUrl")
-
+    img = request.files["image"]
     try:
-        founded = int(payload.get("founded"))
+        image_url = save_uploaded_image(img)
+        return jsonify({"ok": True, "imageUrl": image_url}), 201
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Upload failed: {e}"}), 500
+
+
+@app.post("/api/teams")
+def create_team():
+    # multipart/form-data
+    name = (request.form.get("name") or "").strip()
+    league = (request.form.get("league") or "").strip()
+    country = (request.form.get("country") or "").strip()
+    stadium = (request.form.get("stadium") or "").strip()
+
+    founded_raw = request.form.get("founded")
+    try:
+        founded = int(founded_raw)
     except (TypeError, ValueError):
         founded = None
 
+    errors = {}
+    if not name:
+        errors["name"] = "Name is required."
+    if not league:
+        errors["league"] = "League is required."
+    if not country:
+        errors["country"] = "Country is required."
+    if founded is None or founded < 1701:
+        errors["founded"] = "Founded must be a number >= 1701."
+    if not stadium:
+        errors["stadium"] = "Stadium is required."
+
+    image_url = None
+    if "image" in request.files and request.files["image"].filename:
+        try:
+            image_url = save_uploaded_image(request.files["image"])
+        except ValueError as ve:
+            errors["image"] = str(ve)
+        except Exception as e:
+            errors["image"] = f"Upload failed: {e}"
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    if not image_url:
+        image_url = placeholder_image_url(name)
+
+    sql = """
+        INSERT INTO teams (name, league, country, founded, stadium, image_url)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id;
+    """
+
+    try:
+        with get_db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (name, league, country, founded, stadium, image_url))
+                new_id = cur.fetchone()[0]
+            conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        return jsonify({"errors": {"name": "A team with this name already exists."}}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({
+        "id": str(new_id),
+        "name": name,
+        "league": league,
+        "country": country,
+        "founded": founded,
+        "stadium": stadium,
+        "imageUrl": image_url
+    }), 201
+
+
+@app.put("/api/teams/<team_id>")
+def update_team(team_id):
+    # multipart/form-data
+    name = (request.form.get("name") or "").strip()
+    league = (request.form.get("league") or "").strip()
+    country = (request.form.get("country") or "").strip()
+    stadium = (request.form.get("stadium") or "").strip()
+
+    founded_raw = request.form.get("founded")
+    try:
+        founded = int(founded_raw)
+    except (TypeError, ValueError):
+        founded = None
+
+    errors = {}
     if not name:
         errors["name"] = "Name is required."
     if not league:
@@ -282,15 +429,28 @@ def update_team(team_id):
     if not stadium:
         errors["stadium"] = "Stadium is required."
 
-    image_url = normalize_image_url(name, image_url_raw)
-    if image_url_raw and not image_url:
-        errors["imageUrl"] = "Image URL must start with http:// or https://"
+    # get existing image
+    with get_db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT image_url FROM teams WHERE id=%s;", (team_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Team not found."}), 404
+            existing_image_url = row[0]
+
+    new_image_url = None
+    if "image" in request.files and request.files["image"].filename:
+        try:
+            new_image_url = save_uploaded_image(request.files["image"])
+        except ValueError as ve:
+            errors["image"] = str(ve)
+        except Exception as e:
+            errors["image"] = f"Upload failed: {e}"
 
     if errors:
         return jsonify({"errors": errors}), 400
 
-    if not image_url:
-        image_url = placeholder_image_url(name)
+    image_url = new_image_url or existing_image_url or placeholder_image_url(name)
 
     sql = """
         UPDATE teams
@@ -303,13 +463,14 @@ def update_team(team_id):
     with get_db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, (name, league, country, founded, stadium, image_url, team_id))
-            row = cur.fetchone()
+            updated = cur.fetchone()
         conn.commit()
 
-    if not row:
+    if not updated:
         return jsonify({"error": "Team not found."}), 404
 
-    return jsonify({"ok": True}), 200
+    return jsonify({"ok": True, "imageUrl": image_url}), 200
+
 
 @app.delete("/api/teams/<team_id>")
 def delete_team(team_id):
@@ -326,81 +487,6 @@ def delete_team(team_id):
 
     return jsonify({"deletedId": str(row[0])}), 200
 
-@app.post("/api/teams")
-def create_team():
-    payload = request.get_json(silent=True) or {}
-    errors = {}
-
-    def get_str(field):
-        v = payload.get(field, "")
-        return v.strip() if isinstance(v, str) else ""
-
-    name = get_str("name")
-    league = get_str("league")
-    country = get_str("country")
-    stadium = get_str("stadium")
-    image_url_raw = get_str("imageUrl")
-
-    try:
-        founded = int(payload.get("founded"))
-    except (TypeError, ValueError):
-        founded = None
-
-    if not name:
-        errors["name"] = "Name is required."
-    if not league:
-        errors["league"] = "League is required."
-    if not country:
-        errors["country"] = "Country is required."
-    if founded is None or founded < 1701:
-        errors["founded"] = "Founded must be a number >= 1701."
-    if not stadium:
-        errors["stadium"] = "Stadium is required."
-
-    image_url = normalize_image_url(name, image_url_raw)
-    if image_url_raw and not image_url:
-        errors["imageUrl"] = "Image URL must start with http:// or https://"
-
-    if errors:
-        return jsonify({"errors": errors}), 400
-
-    if not image_url:
-        image_url = placeholder_image_url(name)
-
-    sql = """
-        INSERT INTO teams (name, league, country, founded, stadium, image_url)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        RETURNING id;
-    """
-
-    conn = None
-    try:
-        conn = get_db_conn()
-        with conn.cursor() as cur:
-            cur.execute(sql, (name, league, country, founded, stadium, image_url))
-            new_id = cur.fetchone()[0]
-        conn.commit()
-    except pg_errors.UniqueViolation:
-        if conn:
-            conn.rollback()
-        return jsonify({"errors": {"name": "A team with this name already exists."}}), 400
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if conn:
-            conn.close()
-
-    return jsonify({
-        "id": str(new_id),
-        "name": name,
-        "league": league,
-        "country": country,
-        "founded": founded,
-        "stadium": stadium,
-        "imageUrl": image_url
-    }), 201
 
 @app.post("/api/admin/seed")
 def seed_db():
@@ -408,7 +494,6 @@ def seed_db():
     One-time seed route: loads teams from the JSON file into Postgres.
     Safe to run multiple times (skips duplicates by team name).
     """
-    # Ensure table exists (safe + idempotent)
     ensure_db_initialized()
 
     try:
@@ -445,8 +530,8 @@ def seed_db():
                 except (TypeError, ValueError):
                     founded = 1900
 
+                # If seed has a URL, keep it; otherwise placeholder
                 image_url = str(t.get("imageUrl", "")).strip()
-                image_url = normalize_image_url(name, image_url)
                 if not image_url:
                     image_url = placeholder_image_url(name)
 
@@ -455,7 +540,6 @@ def seed_db():
                     continue
 
                 cur.execute(sql, (name, league, country, founded, stadium, image_url))
-
                 if cur.rowcount == 1:
                     inserted += 1
                 else:
@@ -478,6 +562,7 @@ def seed_db():
         "total_in_seed_file": len(seed_teams),
         "seed_file_used": find_data_file(),
     }), 200
+
 
 if __name__ == "__main__":
     # Local dev only. Render uses gunicorn.

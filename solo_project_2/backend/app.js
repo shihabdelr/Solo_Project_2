@@ -1,6 +1,10 @@
 /*https://soloproj.netlify.app/*/
 
-const API_BASE = "https://solo-project-2-7rmr.onrender.com/api";
+// Use Render API when running locally, but relative /api when served by Flask on Render
+const API_BASE =
+  (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+    ? "https://solo-project-2-7rmr.onrender.com/api"
+    : "/api";
 
 let totalCount = 0;
 let totalPages = 1;
@@ -8,53 +12,16 @@ let totalPages = 1;
 let statsTotalCount = 0;
 let statsTeamsPerLeague = {};
 
-let teams = [];
 let currentPage = 1;
+let pageSize = 10;
+
+let currentSort = "name";
+let currentDir = "asc";
+
+let currentQuery = "";
+let currentLeague = "";
 
 let editingId = null;
-
-// ===== Step 1: Page size + cookie persistence =====
-const PAGE_SIZE_COOKIE = "pageSize";
-const ALLOWED_PAGE_SIZES = [5, 10, 20, 50];
-
-function getCookie(name) {
-  const cookies = document.cookie ? document.cookie.split("; ") : [];
-  for (let i = 0; i < cookies.length; i++) {
-    const [k, ...rest] = cookies[i].split("=");
-    if (k === name) return decodeURIComponent(rest.join("="));
-  }
-  return null;
-}
-
-function setCookie(name, value, days = 90) {
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  document.cookie = `${name}=${encodeURIComponent(String(value))}; Expires=${expires}; Path=/; SameSite=Lax`;
-}
-
-function normalizePageSize(raw) {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return 10;
-  return ALLOWED_PAGE_SIZES.includes(n) ? n : 10;
-}
-
-let pageSize = normalizePageSize(getCookie(PAGE_SIZE_COOKIE) ?? 10);
-setCookie(PAGE_SIZE_COOKIE, pageSize);
-
-// ===== Step 4: Search / Filter / Sort state =====
-let searchQuery = "";
-let leagueFilter = "";
-let sortField = "name";
-let sortDir = "asc";
-let leaguesCache = [];
-
-// ===== Step 3: Image fallback =====
-const FALLBACK_IMG = "https://placehold.co/80x80?text=No+Image";
-
-function safeImg(url, name) {
-  if (url && String(url).trim()) return String(url).trim();
-  const label = encodeURIComponent((name || "Team").slice(0, 12));
-  return `https://placehold.co/80x80?text=${label}`;
-}
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -65,347 +32,308 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-async function loadTeams(page = 1) {
-  const params = new URLSearchParams();
-  params.set("page", String(page));
-  params.set("pageSize", String(pageSize));
-
-  if (searchQuery.trim()) params.set("q", searchQuery.trim());
-  if (leagueFilter) params.set("league", leagueFilter);
-
-  params.set("sort", sortField);
-  params.set("dir", sortDir);
-
-  const res = await fetch(`${API_BASE}/teams?${params.toString()}`);
-  if (!res.ok) throw new Error(`Failed to load teams (HTTP ${res.status})`);
-
-  const data = await res.json();
-
-  teams = data.items;
-  currentPage = data.page;
-
-  totalCount = data.totalCount;
-  totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-
-  renderList();
-}
-
-async function loadStats() {
-  const res = await fetch(`${API_BASE}/stats`);
-  if (!res.ok) throw new Error(`Failed to load stats (HTTP ${res.status})`);
-
-  const data = await res.json();
-  statsTotalCount = data.totalCount;
-  statsTeamsPerLeague = data.teamsPerLeague || {};
-
-  // Populate league dropdown options
-  leaguesCache = Object.keys(statsTeamsPerLeague).sort((a, b) => a.localeCompare(b));
-
-  renderStats();
+function safeImg(url, teamName) {
+  // backend always sends a valid URL now (placeholder or /static/uploads/..)
+  if (!url) return `https://placehold.co/80x80?text=${encodeURIComponent((teamName || "Team").slice(0, 12))}`;
+  return url;
 }
 
 function show(view) {
-  const listView = document.getElementById("listView");
-  const formView = document.getElementById("formView");
-  const statsView = document.getElementById("statsView");
-
-  listView.style.display = "none";
-  formView.style.display = "none";
-  statsView.style.display = "none";
-
-  if (view === "list") listView.style.display = "block";
-  if (view === "form") formView.style.display = "block";
-  if (view === "stats") statsView.style.display = "block";
+  document.getElementById("listView").style.display = view === "list" ? "block" : "none";
+  document.getElementById("formView").style.display = view === "form" ? "block" : "none";
+  document.getElementById("statsView").style.display = view === "stats" ? "block" : "none";
 }
 
-function renderList() {
-  const list = document.getElementById("listView");
+function clearFormErrors() {
+  const el = document.getElementById("formErrors");
+  el.style.display = "none";
+  el.innerHTML = "";
+}
 
-  const startNum = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endNum = Math.min(currentPage * pageSize, totalCount);
+function showFormErrors(errors) {
+  const el = document.getElementById("formErrors");
+  el.style.display = "block";
 
-  const prevDisabled = currentPage <= 1 ? "disabled" : "";
-  const nextDisabled = currentPage >= totalPages ? "disabled" : "";
-
-  const pageSizeOptions = ALLOWED_PAGE_SIZES.map(
-    (s) => `<option value="${s}" ${s === pageSize ? "selected" : ""}>${s}</option>`
-  ).join("");
-
-  const leagueOptions = [
-    `<option value="">All leagues</option>`,
-    ...leaguesCache.map(l => `<option value="${escapeHtml(l)}" ${l === leagueFilter ? "selected" : ""}>${escapeHtml(l)}</option>`)
-  ].join("");
-
-  const sortOptions = [
-    ["name", "Name"],
-    ["founded", "Founded"],
-    ["league", "League"],
-    ["country", "Country"]
-  ].map(([v, label]) => `<option value="${v}" ${v === sortField ? "selected" : ""}>${label}</option>`).join("");
-
-  let html = `
-    <h2>Teams</h2>
-
-    <div class="toolbar">
-      <button id="prevPage" ${prevDisabled}>Previous</button>
-      <div><b>Page ${currentPage}</b> of ${totalPages}</div>
-      <button id="nextPage" ${nextDisabled}>Next</button>
-
-      <label class="toolbar-item">
-        Page size:
-        <select id="pageSizeSelect">
-          ${pageSizeOptions}
-        </select>
-      </label>
-
-      <label class="toolbar-item">
-        Search:
-        <input id="searchInput" type="text" placeholder="e.g., Real" value="${escapeHtml(searchQuery)}" />
-      </label>
-
-      <label class="toolbar-item">
-        League:
-        <select id="leagueSelect">
-          ${leagueOptions}
-        </select>
-      </label>
-
-      <label class="toolbar-item">
-        Sort:
-        <select id="sortSelect">
-          ${sortOptions}
-        </select>
-      </label>
-
-      <label class="toolbar-item">
-        Dir:
-        <select id="dirSelect">
-          <option value="asc" ${sortDir === "asc" ? "selected" : ""}>Asc</option>
-          <option value="desc" ${sortDir === "desc" ? "selected" : ""}>Desc</option>
-        </select>
-      </label>
-
-      <button id="applyFilters" class="toolbar-item">Apply</button>
-      <button id="clearFilters" class="toolbar-item">Clear</button>
-
-      <div class="toolbar-spacer"></div>
-      <div>Showing ${startNum}–${endNum} of ${totalCount}</div>
-    </div>
-  `;
-
-  if (!teams.length) {
-    html += `<p class="empty-state">No results found. Try changing your search/filter.</p>`;
-    list.innerHTML = html;
-    wireToolbarHandlers();
+  const entries = Object.entries(errors || {});
+  if (entries.length === 0) {
+    el.innerHTML = "<p>Something went wrong.</p>";
     return;
   }
 
-  html += `
-    <table border="1" cellpadding="6">
-      <tr>
-        <th>Image</th>
-        <th>Name</th>
-        <th>League</th>
-        <th>Country</th>
-        <th>Founded</th>
-        <th>Stadium</th>
-        <th>Edits</th>
-      </tr>
-  `;
-
-  for (let i = 0; i < teams.length; i++) {
-    const t = teams[i];
-    html += `
-      <tr>
-        <td>
-          <img class="team-thumb"
-               src="${safeImg(t.imageUrl, t.name)}"
-               alt="${escapeHtml(t.name)} logo"
-               onerror="this.onerror=null; this.src='${FALLBACK_IMG}';" />
-        </td>
-        <td>${escapeHtml(t.name)}</td>
-        <td>${escapeHtml(t.league)}</td>
-        <td>${escapeHtml(t.country)}</td>
-        <td>${escapeHtml(t.founded)}</td>
-        <td>${escapeHtml(t.stadium || "")}</td>
-        <td>
-          <button onclick="editTeam('${escapeHtml(t.id)}')">Edit</button>
-          <button onclick="deleteTeam('${escapeHtml(t.id)}')">Delete</button>
-        </td>
-      </tr>
-    `;
-  }
-
-  html += `</table>`;
-  list.innerHTML = html;
-
-  wireToolbarHandlers();
+  el.innerHTML = entries
+    .map(([k, v]) => `<p><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`)
+    .join("");
 }
 
-function wireToolbarHandlers() {
-  document.getElementById("prevPage")?.addEventListener("click", () => {
-    if (currentPage > 1) loadTeams(currentPage - 1);
-  });
+function clearForm() {
+  editingId = null;
+  document.getElementById("submitBtn").textContent = "Add Team";
 
-  document.getElementById("nextPage")?.addEventListener("click", () => {
-    if (currentPage < totalPages) loadTeams(currentPage + 1);
-  });
+  document.getElementById("name").value = "";
+  document.getElementById("league").value = "";
+  document.getElementById("country").value = "";
+  document.getElementById("founded").value = "";
+  document.getElementById("stadium").value = "";
+  document.getElementById("imageFile").value = ""; // clear file chooser
 
-  document.getElementById("pageSizeSelect")?.addEventListener("change", async (e) => {
-    pageSize = normalizePageSize(e.target.value);
-    setCookie(PAGE_SIZE_COOKIE, pageSize);
-    await loadTeams(1);
-  });
-
-  document.getElementById("applyFilters")?.addEventListener("click", async () => {
-    searchQuery = document.getElementById("searchInput").value;
-    leagueFilter = document.getElementById("leagueSelect").value;
-    sortField = document.getElementById("sortSelect").value;
-    sortDir = document.getElementById("dirSelect").value;
-    await loadTeams(1);
-  });
-
-  document.getElementById("clearFilters")?.addEventListener("click", async () => {
-    searchQuery = "";
-    leagueFilter = "";
-    sortField = "name";
-    sortDir = "asc";
-    await loadTeams(1);
-  });
-
-  // Optional: press Enter in search box to apply
-  document.getElementById("searchInput")?.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      document.getElementById("applyFilters")?.click();
-    }
-  });
-}
-
-function renderStats() {
-  const stats = document.getElementById("statsView");
-
-  let list = "<ul>";
-  for (const league in statsTeamsPerLeague) {
-    list += `<li>${escapeHtml(league)}: ${escapeHtml(statsTeamsPerLeague[league])}</li>`;
-  }
-  list += "</ul>";
-
-  stats.innerHTML = `
-    <h2>Stats</h2>
-    <p><b>Total teams (entire dataset):</b> ${escapeHtml(statsTotalCount)}</p>
-    <p><b>Current page size:</b> ${escapeHtml(pageSize)}</p>
-    <p><b>Teams per league (entire dataset):</b></p>
-    ${list}
-  `;
+  clearFormErrors();
 }
 
 function fillForm(team) {
-  const nameInput = document.getElementById("name");
-  const leagueInput = document.getElementById("league");
-  const countryInput = document.getElementById("country");
-  const foundedInput = document.getElementById("founded");
-  const stadiumInput = document.getElementById("stadium");
-  const imageUrlInput = document.getElementById("imageUrl");
+  editingId = team.id;
+  document.getElementById("submitBtn").textContent = "Edit Team";
 
-  if (team !== null) {
-    nameInput.value = team.name;
-    leagueInput.value = team.league;
-    countryInput.value = team.country;
-    foundedInput.value = team.founded;
-    stadiumInput.value = team.stadium;
-    imageUrlInput.value = team.imageUrl || "";
-  } else {
-    nameInput.value = "";
-    leagueInput.value = "";
-    countryInput.value = "";
-    foundedInput.value = "";
-    stadiumInput.value = "";
-    imageUrlInput.value = "";
-  }
+  document.getElementById("name").value = team.name || "";
+  document.getElementById("league").value = team.league || "";
+  document.getElementById("country").value = team.country || "";
+  document.getElementById("founded").value = team.founded || "";
+  document.getElementById("stadium").value = team.stadium || "";
+  document.getElementById("imageFile").value = ""; // user can optionally choose new file
+  clearFormErrors();
 }
 
-function startAdd() {
-  editingId = null;
-  clearFormErrors();
-  fillForm(null);
+function renderPagination() {
+  const disabledPrev = currentPage <= 1;
+  const disabledNext = currentPage >= totalPages;
 
-  document.querySelector("#formView h2").textContent = "Add Team";
-  document.getElementById("submitBtn").textContent = "Add Team";
+  return `
+    <div class="pager">
+      <button id="prevPage" ${disabledPrev ? "disabled" : ""}>Prev</button>
+      <span>Page ${currentPage} / ${totalPages}</span>
+      <button id="nextPage" ${disabledNext ? "disabled" : ""}>Next</button>
 
-  show("form");
+      <label style="margin-left:12px;">
+        Page Size:
+        <select id="pageSizeSel">
+          ${[5,10,20,50].map(n => `<option value="${n}" ${n===pageSize ? "selected":""}>${n}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+  `;
 }
 
-window.editTeam = function (id) {
-  const team = teams.find(t => String(t.id) === String(id));
-  if (!team) {
-    alert("Could not find that team on this page. Try reloading.");
-    return;
-  }
+function renderFilters() {
+  return `
+    <div class="filters">
+      <input id="q" type="text" placeholder="Search by name..." value="${escapeHtml(currentQuery)}" />
 
-  editingId = id;
-  clearFormErrors();
-  fillForm(team);
+      <input id="leagueFilter" type="text" placeholder="Filter by league..." value="${escapeHtml(currentLeague)}" />
 
-  document.querySelector("#formView h2").textContent = "Edit Team";
-  document.getElementById("submitBtn").textContent = "Save Changes";
+      <button id="applyFilters">Apply</button>
+      <button id="clearFilters">Clear</button>
 
-  show("form");
-};
+      <label style="margin-left:12px;">
+        Sort:
+        <select id="sortSel">
+          ${["name","founded","league","country"].map(s => `<option value="${s}" ${s===currentSort?"selected":""}>${s}</option>`).join("")}
+        </select>
+      </label>
 
-window.deleteTeam = async function (id) {
-  const ok = confirm("Delete this team? This cannot be undone.");
-  if (!ok) return;
+      <label>
+        Dir:
+        <select id="dirSel">
+          <option value="asc" ${currentDir==="asc"?"selected":""}>asc</option>
+          <option value="desc" ${currentDir==="desc"?"selected":""}>desc</option>
+        </select>
+      </label>
 
+      <button id="applySort">Sort</button>
+    </div>
+  `;
+}
+
+function renderList(items) {
+  const rows = (items || []).map(t => `
+    <div class="team-row">
+      <img class="team-thumb"
+           src="${safeImg(t.imageUrl, t.name)}"
+           alt="${escapeHtml(t.name)} logo"
+           onerror="this.onerror=null; this.src='https://placehold.co/80x80?text=${encodeURIComponent((t.name||'Team').slice(0,12))}';" />
+
+      <div class="team-main">
+        <div class="team-title">${escapeHtml(t.name)}</div>
+        <div class="team-sub">${escapeHtml(t.league)} • ${escapeHtml(t.country)} • Founded ${escapeHtml(t.founded)}</div>
+        <div class="team-sub">Stadium: ${escapeHtml(t.stadium)}</div>
+      </div>
+
+      <div class="team-actions">
+        <button class="editBtn" data-id="${escapeHtml(t.id)}">Edit</button>
+        <button class="delBtn" data-id="${escapeHtml(t.id)}">Delete</button>
+      </div>
+    </div>
+  `).join("");
+
+  return `
+    ${renderFilters()}
+    <h2>Teams (${totalCount})</h2>
+    ${renderPagination()}
+    <div class="team-list">${rows || "<p>No teams found.</p>"}</div>
+  `;
+}
+
+async function loadTeams() {
+  const params = new URLSearchParams();
+  params.set("page", String(currentPage));
+  params.set("pageSize", String(pageSize));
+  params.set("sort", currentSort);
+  params.set("dir", currentDir);
+
+  if (currentQuery) params.set("q", currentQuery);
+  if (currentLeague) params.set("league", currentLeague);
+
+  const res = await fetch(`${API_BASE}/teams?${params.toString()}`);
+  if (!res.ok) throw new Error(`GET /teams failed (HTTP ${res.status})`);
+
+  const data = await res.json();
+  totalCount = data.totalCount || 0;
+
+  // totalPages is derived
+  totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  return data.items || [];
+}
+
+async function refreshList() {
   try {
-    const res = await fetch(`${API_BASE}/teams/${id}`, { method: "DELETE" });
+    const items = await loadTeams();
+    document.getElementById("listView").innerHTML = renderList(items);
 
-    if (res.status === 404) {
-      alert("That record no longer exists. Reloading...");
-      await loadTeams(currentPage);
-      return;
-    }
+    // Wire pagination
+    const prev = document.getElementById("prevPage");
+    const next = document.getElementById("nextPage");
+    const pageSizeSel = document.getElementById("pageSizeSel");
 
-    if (!res.ok) {
-      throw new Error(`DELETE failed (HTTP ${res.status})`);
-    }
-
-    const newTotal = totalCount - 1;
-    const newTotalPages = Math.max(1, Math.ceil(newTotal / pageSize));
-    const targetPage = Math.min(currentPage, newTotalPages);
-
-    await loadTeams(targetPage);
-  } catch (err) {
-    console.error(err);
-    alert("Could not delete team. Is the backend running?");
-  }
-};
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("showList").addEventListener("click", () => show("list"));
-  document.getElementById("showForm").addEventListener("click", startAdd);
-  document.getElementById("showStats").addEventListener("click", () => {
-    show("stats");
-    loadStats().catch((err) => {
-      console.error(err);
-      alert("Could not load stats from backend. Make sure Flask is running.");
+    if (prev) prev.addEventListener("click", async () => {
+      if (currentPage > 1) currentPage--;
+      await refreshList();
     });
+
+    if (next) next.addEventListener("click", async () => {
+      if (currentPage < totalPages) currentPage++;
+      await refreshList();
+    });
+
+    if (pageSizeSel) pageSizeSel.addEventListener("change", async (e) => {
+      pageSize = parseInt(e.target.value, 10);
+      currentPage = 1;
+      await refreshList();
+    });
+
+    // Wire filters + sorting
+    document.getElementById("applyFilters").addEventListener("click", async () => {
+      currentQuery = document.getElementById("q").value.trim();
+      currentLeague = document.getElementById("leagueFilter").value.trim();
+      currentPage = 1;
+      await refreshList();
+    });
+
+    document.getElementById("clearFilters").addEventListener("click", async () => {
+      currentQuery = "";
+      currentLeague = "";
+      currentPage = 1;
+      await refreshList();
+    });
+
+    document.getElementById("applySort").addEventListener("click", async () => {
+      currentSort = document.getElementById("sortSel").value;
+      currentDir = document.getElementById("dirSel").value;
+      currentPage = 1;
+      await refreshList();
+    });
+
+    // Wire edit/delete buttons
+    document.querySelectorAll(".editBtn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        // simplest: find in current DOM data by reloading current page and matching id
+        const itemsNow = await loadTeams();
+        const team = itemsNow.find(t => String(t.id) === String(id));
+        if (!team) return alert("Team not found on this page. Try refreshing.");
+        fillForm(team);
+        show("form");
+      });
+    });
+
+    document.querySelectorAll(".delBtn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        if (!confirm("Delete this team?")) return;
+
+        const res = await fetch(`${API_BASE}/teams/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          alert(`Delete failed (HTTP ${res.status})`);
+          return;
+        }
+        await refreshList();
+      });
+    });
+
+  } catch (e) {
+    console.error(e);
+    document.getElementById("listView").innerHTML =
+      "<p>Could not load list from backend. Make sure backend is running.</p>";
+  }
+}
+
+async function refreshStats() {
+  try {
+    const res = await fetch(`${API_BASE}/stats`);
+    if (!res.ok) throw new Error(`GET /stats failed (HTTP ${res.status})`);
+    const data = await res.json();
+
+    statsTotalCount = data.totalCount || 0;
+    statsTeamsPerLeague = data.teamsPerLeague || {};
+
+    const leagueRows = Object.entries(statsTeamsPerLeague)
+      .map(([league, count]) => `<li>${escapeHtml(league)}: ${escapeHtml(count)}</li>`)
+      .join("");
+
+    document.getElementById("statsView").innerHTML = `
+      <h2>Stats</h2>
+      <p><strong>Total Teams:</strong> ${escapeHtml(statsTotalCount)}</p>
+      <h3>Teams Per League</h3>
+      <ul>${leagueRows || "<li>No data.</li>"}</ul>
+    `;
+  } catch (e) {
+    console.error(e);
+    document.getElementById("statsView").innerHTML =
+      "<p>Could not load stats from backend. Make sure backend is running.</p>";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  // top nav
+  document.getElementById("showList").addEventListener("click", async () => {
+    show("list");
+    await refreshList();
+  });
+
+  document.getElementById("showForm").addEventListener("click", () => {
+    clearForm();
+    show("form");
+  });
+
+  document.getElementById("showStats").addEventListener("click", async () => {
+    show("stats");
+    await refreshStats();
   });
 
   document.getElementById("cancel").addEventListener("click", () => show("list"));
 
+  // Submit form: multipart/form-data with optional file
   document.getElementById("teamForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     clearFormErrors();
 
-    const teamData = {
-      name: document.getElementById("name").value,
-      league: document.getElementById("league").value,
-      country: document.getElementById("country").value,
-      founded: document.getElementById("founded").value,
-      stadium: document.getElementById("stadium").value,
-      imageUrl: document.getElementById("imageUrl").value
-    };
+    const fd = new FormData();
+    fd.append("name", document.getElementById("name").value);
+    fd.append("league", document.getElementById("league").value);
+    fd.append("country", document.getElementById("country").value);
+    fd.append("founded", document.getElementById("founded").value);
+    fd.append("stadium", document.getElementById("stadium").value);
+
+    const file = document.getElementById("imageFile").files[0];
+    if (file) fd.append("image", file);
 
     const url = editingId
       ? `${API_BASE}/teams/${editingId}`
@@ -416,8 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(teamData)
+        body: fd
       });
 
       if (res.status === 400) {
@@ -435,50 +362,16 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(`${method} failed (HTTP ${res.status})`);
       }
 
+      clearForm();
       show("list");
-
-      if (method === "POST") {
-        const newTotal = totalCount + 1;
-        const newTotalPages = Math.max(1, Math.ceil(newTotal / pageSize));
-        await loadTeams(newTotalPages);
-      } else {
-        await loadTeams(currentPage);
-      }
-
-      editingId = null;
+      await refreshList();
     } catch (err) {
       console.error(err);
-      showFormErrors({ form: "Could not save team. Is the backend running?" });
+      showFormErrors({ form: "Request failed. Check console and backend logs." });
     }
   });
 
-  // Preload stats in background so league dropdown is populated
-  loadStats().catch(() => {});
-
+  // initial view
   show("list");
-  loadTeams(1).catch((err) => {
-    console.error(err);
-    alert("Could not load teams from backend. Make sure Flask is running.");
-  });
+  await refreshList();
 });
-
-function clearFormErrors() {
-  const box = document.getElementById("formErrors");
-  if (!box) return;
-  box.style.display = "none";
-  box.innerHTML = "";
-}
-
-function showFormErrors(errors) {
-  const box = document.getElementById("formErrors");
-  if (!box) return;
-
-  let html = "<ul>";
-  for (const field in errors) {
-    html += `<li><b>${escapeHtml(field)}:</b> ${escapeHtml(errors[field])}</li>`;
-  }
-  html += "</ul>";
-
-  box.innerHTML = html;
-  box.style.display = "block";
-}
